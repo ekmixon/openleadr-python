@@ -65,13 +65,14 @@ def create_dummy_event(ven_id):
                                     "scale": "none"},
                     "current_value": 0.0}]
     event_targets = [{"ven_id": 'VEN001'}, {"ven_id": 'VEN002'}]
-    event = {'active_period': active_period,
-             'event_descriptor': event_descriptor,
-             'event_signals': event_signals,
-             'targets': event_targets,
-             'targets_by_type': group_targets_by_type(event_targets),
-             'response_required': 'always'}
-    return event
+    return {
+        'active_period': active_period,
+        'event_descriptor': event_descriptor,
+        'event_signals': event_signals,
+        'targets': event_targets,
+        'targets_by_type': group_targets_by_type(event_targets),
+        'response_required': 'always',
+    }
 
 reports = [{'report_id': generate_id(),
             'duration': timedelta(seconds=3600),

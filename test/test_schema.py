@@ -68,12 +68,13 @@ def create_dummy_event(ven_id):
                     "current_value": 9.99}]
 
     event_targets = [{"ven_id": 'VEN001'}, {"ven_id": 'VEN002'}]
-    event = {'active_period': active_period,
-             'event_descriptor': event_descriptor,
-             'event_signals': event_signals,
-             'targets': event_targets,
-             'response_required': 'always'}
-    return event
+    return {
+        'active_period': active_period,
+        'event_descriptor': event_descriptor,
+        'event_signals': event_signals,
+        'targets': event_targets,
+        'response_required': 'always',
+    }
 
 
 testcases = [

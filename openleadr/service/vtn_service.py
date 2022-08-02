@@ -33,10 +33,15 @@ logger = logging.getLogger('openleadr')
 class VTNService:
     def __init__(self, vtn_id):
         self.vtn_id = vtn_id
-        self.handlers = {}
-        for method in [getattr(self, attr) for attr in dir(self) if callable(getattr(self, attr))]:
-            if hasattr(method, '__message_type__'):
-                self.handlers[method.__message_type__] = method
+        self.handlers = {
+            method.__message_type__: method
+            for method in [
+                getattr(self, attr)
+                for attr in dir(self)
+                if callable(getattr(self, attr))
+            ]
+            if hasattr(method, '__message_type__')
+        }
 
     async def handler(self, request):
         """
@@ -62,14 +67,14 @@ class VTNService:
                 raise errors.SendEmptyHTTPResponse()
 
             if 'vtn_id' in message_payload \
-                    and message_payload['vtn_id'] is not None \
-                    and message_payload['vtn_id'] != self.vtn_id:
+                        and message_payload['vtn_id'] is not None \
+                        and message_payload['vtn_id'] != self.vtn_id:
                 raise errors.InvalidIdError(f"The supplied vtnID is invalid. It should be '{self.vtn_id}', "
                                             f"you supplied {message_payload['vtn_id']}.")
 
             # Check if we know this VEN, ask for reregistration otherwise
             if message_type not in ('oadrCreatePartyRegistration', 'oadrQueryRegistration') \
-                    and 'ven_id' in message_payload and hasattr(self, 'ven_lookup'):
+                        and 'ven_id' in message_payload and hasattr(self, 'ven_lookup'):
                 result = await utils.await_if_required(self.ven_lookup(ven_id=message_payload['ven_id']))
                 if result is None or result.get('registration_id', None) is None:
                     raise errors.RequestReregistration(message_payload['ven_id'])

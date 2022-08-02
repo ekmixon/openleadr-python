@@ -189,7 +189,7 @@ class EventSignal:
                                  f"You provided types: '{', '.join(targets_by_type)}'")
         elif self.targets is None:
             self.targets = [Target(**target) for target in utils.ungroup_targets_by_type(self.targets_by_type)]
-        elif self.targets is not None and self.targets_by_type is not None:
+        else:
             list_of_targets = [asdict(target) if is_dataclass(target) else target for target in self.targets]
             if utils.group_targets_by_type(list_of_targets) != self.targets_by_type:
                 raise ValueError("You assigned both 'targets' and 'targets_by_type' in your event, "
@@ -209,12 +209,23 @@ class Event:
 
     def __post_init__(self):
         if self.active_period is None:
-            dtstart = min([i['dtstart']
-                           if isinstance(i, dict) else i.dtstart
-                           for s in self.event_signals for i in s.intervals])
-            duration = max([i['dtstart'] + i['duration']
-                            if isinstance(i, dict) else i.dtstart + i.duration
-                            for s in self.event_signals for i in s.intervals]) - dtstart
+            dtstart = min(
+                i['dtstart'] if isinstance(i, dict) else i.dtstart
+                for s in self.event_signals
+                for i in s.intervals
+            )
+
+            duration = (
+                max(
+                    i['dtstart'] + i['duration']
+                    if isinstance(i, dict)
+                    else i.dtstart + i.duration
+                    for s in self.event_signals
+                    for i in s.intervals
+                )
+                - dtstart
+            )
+
             self.active_period = ActivePeriod(dtstart=dtstart,
                                               duration=duration)
         if self.targets is None and self.targets_by_type is None:
@@ -224,7 +235,7 @@ class Event:
             self.targets_by_type = utils.group_targets_by_type(list_of_targets)
         elif self.targets is None:
             self.targets = [Target(**target) for target in utils.ungroup_targets_by_type(self.targets_by_type)]
-        elif self.targets is not None and self.targets_by_type is not None:
+        else:
             list_of_targets = [asdict(target) if is_dataclass(target) else target for target in self.targets]
             if utils.group_targets_by_type(list_of_targets) != self.targets_by_type:
                 raise ValueError("You assigned both 'targets' and 'targets_by_type' in your event, "

@@ -72,8 +72,14 @@ async def test_conformance_008_autocorrect(caplog):
 
     parsed_type, parsed_msg = parse_message(msg)
     assert parsed_type == 'oadrDistributeEvent'
-    total_time = sum([i['duration'] for i in parsed_msg['events'][0]['event_signals'][0]['intervals']],
-                     timedelta(seconds=0))
+    total_time = sum(
+        (
+            i['duration']
+            for i in parsed_msg['events'][0]['event_signals'][0]['intervals']
+        ),
+        timedelta(seconds=0),
+    )
+
     assert parsed_msg['events'][0]['active_period']['duration'] == total_time
 
 @pytest.mark.asyncio

@@ -152,7 +152,7 @@ class ReportService(VTNService):
             report_requests.append(results)
         utils.validate_report_request_tuples(report_requests, mode=mode)
 
-        for i, report_request in enumerate(report_requests):
+        for report_request in report_requests:
             if report_request is None or len(report_request) == 0 or all(rrq is None for rrq in report_request):
                 continue
             # Check if all sampling rates per report_request are the same

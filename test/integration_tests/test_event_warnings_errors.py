@@ -58,7 +58,7 @@ async def test_client_no_event_handler(caplog):
             "choice. Will opt out of the event for now.") in [rec.message for rec in caplog.records]
     await client.stop()
     await server.stop()
-    await asyncio.gather(*[t for t in asyncio.all_tasks()][1:])
+    await asyncio.gather(*list(asyncio.all_tasks())[1:])
 
 @pytest.mark.asyncio
 async def test_client_faulty_event_handler(caplog):
@@ -91,11 +91,14 @@ async def test_client_faulty_event_handler(caplog):
     print("Waiting for a response to the event")
     result = await event_confirm_future
     assert result == 'optOut'
-    assert ("Your on_event or on_update_event handler must return 'optIn' or 'optOut'; "
-           f"you supplied {None}. Please fix your on_event handler.") in [rec.message for rec in caplog.records]
+    assert (
+        f"Your on_event or on_update_event handler must return 'optIn' or 'optOut'; you supplied None. Please fix your on_event handler."
+        in [rec.message for rec in caplog.records]
+    )
+
     await client.stop()
     await server.stop()
-    await asyncio.gather(*[t for t in asyncio.all_tasks()][1:])
+    await asyncio.gather(*list(asyncio.all_tasks())[1:])
 
 @pytest.mark.asyncio
 async def test_client_exception_event_handler(caplog):
@@ -134,7 +137,7 @@ async def test_client_exception_event_handler(caplog):
            f"The error was {err.__class__.__name__}: {str(err)}") in [rec.message for rec in caplog.records]
     await client.stop()
     await server.stop()
-    await asyncio.gather(*[t for t in asyncio.all_tasks()][1:])
+    await asyncio.gather(*list(asyncio.all_tasks())[1:])
 
 @pytest.mark.asyncio
 async def test_client_good_event_handler(caplog):
@@ -175,7 +178,7 @@ async def test_client_good_event_handler(caplog):
     assert len(caplog.records) == 0
     await client.stop()
     await server.stop()
-    await asyncio.gather(*[t for t in asyncio.all_tasks()][1:])
+    await asyncio.gather(*list(asyncio.all_tasks())[1:])
 
 @pytest.mark.asyncio
 async def test_server_warning_conflicting_poll_methods(caplog):
@@ -343,7 +346,7 @@ async def test_client_warning_no_update_event_handler(caplog):
             "choice. Will re-use the previous opt status for this event_id for now") in [record.msg for record in caplog.records]
     await client.stop()
     await server.stop()
-    await asyncio.gather(*[t for t in asyncio.all_tasks()][1:])
+    await asyncio.gather(*list(asyncio.all_tasks())[1:])
 
 @pytest.mark.asyncio
 async def test_server_add_event_with_wrong_callback_signature(caplog):

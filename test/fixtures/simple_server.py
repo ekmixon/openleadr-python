@@ -64,8 +64,7 @@ def add_event(ven_id, event_id, event):
 async def _on_poll(ven_id, request_id=None):
     cur = DB.cursor()
     cur.execute("""SELECT event_id, event FROM events WHERE ven_id = ? AND status = 'new' LIMIT 1""", (ven_id,))
-    result = cur.fetchone()
-    if result:
+    if result := cur.fetchone():
         event_id, event = result
         event_request_id = generate_id()
         with DB:

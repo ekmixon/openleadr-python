@@ -109,8 +109,10 @@ def test_validate_report_measurement_dict_missing_items(caplog):
     measurement = {'name': 'rainbows'}
     with pytest.raises(ValueError) as err:
         utils.validate_report_measurement_dict(measurement)
-    assert str(err.value) == (f"The measurement dict must contain the following keys: "
-                              "'name', 'description', 'unit'. Please correct this.")
+    assert (
+        str(err.value)
+        == "The measurement dict must contain the following keys: 'name', 'description', 'unit'. Please correct this."
+    )
 
 def test_validate_report_measurement_dict_invalid_name(caplog):
     measurement = {'name': 'rainbows',
@@ -129,8 +131,10 @@ def test_validate_report_measurement_dict_invalid_unit():
                        'unit': 'B',
                        'description': 'Current'}
         utils.validate_report_measurement_dict(measurement)
-    assert str(err.value) == (f"The unit 'B' is not acceptable for measurement 'current'. Allowed "
-                              f"units are: 'A'.")
+    assert (
+        str(err.value)
+        == "The unit 'B' is not acceptable for measurement 'current'. Allowed units are: 'A'."
+    )
 
 
 def test_validate_report_measurement_dict_invalid_description(caplog):
@@ -140,10 +144,9 @@ def test_validate_report_measurement_dict_invalid_description(caplog):
                        'description': 'something'}
         utils.validate_report_measurement_dict(measurement)
 
-    str(err.value) ==  (f"The measurement's description 'something' "
-                        f"did not match the expected description for this type "
-                        f" ('Current'). Please correct this, or use "
-                        "'customUnit' as the name.")
+    str(
+        err.value
+    ) == "The measurement's description 'something' did not match the expected description for this type  ('Current'). Please correct this, or use 'customUnit' as the name."
 
 def test_validate_report_measurement_dict_invalid_description_case(caplog):
     measurement = {'name': 'current',
@@ -244,7 +247,10 @@ def test_parse_duration():
     assert utils.parse_duration("2W") == timedelta(days=14)
     with pytest.raises(ValueError) as err:
         utils.parse_duration("Hello")
-    assert str(err.value) == f"The duration 'Hello' did not match the requested format"
+    assert (
+        str(err.value)
+        == "The duration 'Hello' did not match the requested format"
+    )
 
 def test_parse_datetime():
     assert utils.parse_datetime("2020-12-15T11:29:34Z") == datetime(2020, 12, 15, 11, 29, 34, tzinfo=timezone.utc)
@@ -267,7 +273,7 @@ async def test_await_if_required():
     assert result == 456
 
     result = await utils.await_if_required(None)
-    assert result == None
+    assert result is None
 
 @pytest.mark.asyncio
 async def test_gather_if_required():

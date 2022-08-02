@@ -321,14 +321,13 @@ class OpenADRServer:
                               It receives the message, and should return the contents of a response.
         """
         logger.debug(f"Adding handler: {name} {func}")
-        if name in self._MAP:
-            setattr(self.services[self._MAP[name]], name, func)
-            if name == 'on_poll':
-                self.services['poll_service'].polling_method = 'external'
-                self.services['event_service'].polling_method = 'external'
-        else:
+        if name not in self._MAP:
             raise NameError(f"""Unknown handler '{name}'. """
                             f"""Correct handler names are: '{"', '".join(self._MAP.keys())}'.""")
+        setattr(self.services[self._MAP[name]], name, func)
+        if name == 'on_poll':
+            self.services['poll_service'].polling_method = 'external'
+            self.services['event_service'].polling_method = 'external'
 
     @property
     def registered_reports(self):

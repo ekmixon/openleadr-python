@@ -52,16 +52,12 @@ class EventService(VTNService):
             result = self.on_request_event(ven_id=payload['ven_id'])
             if asyncio.iscoroutine(result):
                 result = await result
-            if result is None:
-                events = None
-            else:
-                events = utils.order_events(result)
-
-        if events is None:
-            return 'oadrResponse', {}
-        else:
-            return 'oadrDistributeEvent', {'events': events}
-        return 'oadrResponse', result
+            events = None if result is None else utils.order_events(result)
+        return (
+            ('oadrResponse', {})
+            if events is None
+            else ('oadrDistributeEvent', {'events': events})
+        )
 
     def on_request_event(self, ven_id):
         """
@@ -87,12 +83,13 @@ class EventService(VTNService):
                 event = utils.find_by(self.events[ven_id],
                                       'event_descriptor.event_id', event_id,
                                       'event_descriptor.modification_number', modification_number)
-                if not event:
-                    if event_id not in self.completed_event_ids.get(ven_id, []):
-                        logger.warning(f"""Got an oadrCreatedEvent message from ven '{ven_id}' """
-                                       f"""for event '{event_id}' with modification number """
-                                       f"""{modification_number} that does not exist.""")
-                        raise errors.InvalidIdError
+                if not event and event_id not in self.completed_event_ids.get(
+                    ven_id, []
+                ):
+                    logger.warning(f"""Got an oadrCreatedEvent message from ven '{ven_id}' """
+                                   f"""for event '{event_id}' with modification number """
+                                   f"""{modification_number} that does not exist.""")
+                    raise errors.InvalidIdError
                 # Remove the event from the events list if the cancellation is confirmed.
                 if utils.getmember(event, 'event_descriptor.event_status') == enums.EVENT_STATUS.CANCELLED:
                     utils.pop_by(self.events[ven_id], 'event_descriptor.event_id', event_id)

@@ -31,7 +31,6 @@ async def lookup_ven(ven_name=None, ven_id=None):
 async def receive_data(data, future=None):
     if future:
         future.set_result(data)
-    pass
 
 async def on_update_report(report, futures=None):
     if futures:
@@ -39,7 +38,6 @@ async def on_update_report(report, futures=None):
             if future.done() is False:
                 future.set_result(report)
                 break
-    pass
 
 async def on_register_report(ven_id, resource_id, measurement, unit, scale,
                              min_sampling_interval, max_sampling_interval, bundling=1, futures=None, receive_futures=None):
@@ -67,8 +65,11 @@ async def on_register_report_full(report, futures=None):
     if futures:
         futures.pop().set_result(True)
     granularity = min(*[rd['sampling_rate']['min_period'] for rd in report['report_descriptions']])
-    report_requests = [(rd['r_id'], on_update_report, granularity) for rd in report['report_descriptions'] if report['report_name'] == 'METADATA_TELEMETRY_USAGE']
-    return report_requests
+    return [
+        (rd['r_id'], on_update_report, granularity)
+        for rd in report['report_descriptions']
+        if report['report_name'] == 'METADATA_TELEMETRY_USAGE'
+    ]
 
 async def on_create_party_registration(ven_name, future=None):
     if future:
@@ -343,7 +344,7 @@ async def collect_data_multi(futures=None):
 async def test_incremental_reports():
     loop = asyncio.get_event_loop()
     client = OpenADRClient(ven_name='myven', vtn_url='http://localhost:8080/OpenADR2/Simple/2.0b')
-    collect_futures = [loop.create_future() for i in range(2)]
+    collect_futures = [loop.create_future() for _ in range(2)]
     client.add_report(callback=partial(collect_data_multi, futures=collect_futures),
                       report_specifier_id='myhistory',
                       measurement='voltage',
@@ -462,7 +463,13 @@ def test_add_report_invalid_unit(caplog):
                       resource_id='Device001',
                       sampling_rate=timedelta(seconds=10),
                       unit='A')
-    assert caplog.record_tuples == [("openleadr", logging.WARNING, f"The supplied unit A for measurement voltage will be ignored, V will be used instead. Allowed units for this measurement are: V")]
+    assert caplog.record_tuples == [
+        (
+            "openleadr",
+            logging.WARNING,
+            "The supplied unit A for measurement voltage will be ignored, V will be used instead. Allowed units for this measurement are: V",
+        )
+    ]
 
 def test_add_report_invalid_scale():
     client = OpenADRClient(ven_name='myven', vtn_url='http://localhost:8080/OpenADR2/Simple/2.0b')
@@ -570,14 +577,14 @@ async def test_different_on_register_report_handlers(caplog):
     await client.register_reports(client.reports)
     assert len(client.report_requests) == 0
     messages = [rec.message for rec in caplog.records if rec.levelno == logging.ERROR]
-    assert len(messages) == 0
+    assert not messages
     caplog.clear()
 
     server.add_handler('on_register_report', on_register_report_returning_none)
     await client.register_reports(client.reports)
     assert len(client.report_requests) == 0
     messages = [rec.message for rec in caplog.records if rec.levelno == logging.ERROR]
-    assert len(messages) == 0
+    assert not messages
     caplog.clear()
 
     server.add_handler('on_register_report', on_register_report_returning_string)

@@ -57,12 +57,14 @@ def _preflight_oadrRegisterReport(message_payload):
         # Add the correct namespace to the measurement
         for report_description in report['report_descriptions']:
             if 'measurement' in report_description and report_description['measurement'] is not None:
-                if report_description['measurement']['name'] in enums._MEASUREMENT_NAMESPACES:
-                    measurement_name = report_description['measurement']['name']
-                    measurement_ns = enums._MEASUREMENT_NAMESPACES[measurement_name]
-                    report_description['measurement']['ns'] = measurement_ns
-                else:
+                if (
+                    report_description['measurement']['name']
+                    not in enums._MEASUREMENT_NAMESPACES
+                ):
                     raise ValueError("The Measurement Name is unknown")
+                measurement_name = report_description['measurement']['name']
+                measurement_ns = enums._MEASUREMENT_NAMESPACES[measurement_name]
+                report_description['measurement']['ns'] = measurement_ns
 
 
 def _preflight_oadrDistributeEvent(message_payload):
@@ -71,22 +73,24 @@ def _preflight_oadrDistributeEvent(message_payload):
     # Check that the total event_duration matches the sum of the interval durations (rule 8)
     for event in message_payload['events']:
         active_period_duration = event['active_period']['duration']
-        signal_durations = []
-        for signal in event['event_signals']:
-            signal_durations.append(sum([parse_duration(i['duration'])
-                                         for i in signal['intervals']], timedelta(seconds=0)))
+        signal_durations = [
+            sum(
+                (parse_duration(i['duration']) for i in signal['intervals']),
+                timedelta(seconds=0),
+            )
+            for signal in event['event_signals']
+        ]
 
-        if not all([d == active_period_duration for d in signal_durations]):
-            if not all([d == signal_durations[0] for d in signal_durations]):
+        if any(d != active_period_duration for d in signal_durations):
+            if any(d != signal_durations[0] for d in signal_durations):
                 raise ValueError("The different EventSignals have different total durations. "
                                  "Please correct this.")
-            else:
-                logger.warning(f"The active_period duration for event "
-                               f"{event['event_descriptor']['event_id']} ({active_period_duration})"
-                               f" differs from the sum of the interval's durations "
-                               f"({signal_durations[0]}). The active_period duration has been "
-                               f"adjusted to ({signal_durations[0]}).")
-                event['active_period']['duration'] = signal_durations[0]
+            logger.warning(f"The active_period duration for event "
+                           f"{event['event_descriptor']['event_id']} ({active_period_duration})"
+                           f" differs from the sum of the interval's durations "
+                           f"({signal_durations[0]}). The active_period duration has been "
+                           f"adjusted to ({signal_durations[0]}).")
+            event['active_period']['duration'] = signal_durations[0]
 
     # Check that payload values with signal name SIMPLE are constricted (rule 9)
     for event in message_payload['events']:
@@ -100,25 +104,30 @@ def _preflight_oadrDistributeEvent(message_payload):
     # Check that the current_value is 0 for SIMPLE events that are not yet active (rule 14)
     for event in message_payload['events']:
         for event_signal in event['event_signals']:
-            if 'current_value' in event_signal and event_signal['current_value'] != 0:
-                if event_signal['signal_name'] == "SIMPLE" \
-                        and event['event_descriptor']['event_status'] != "ACTIVE":
-                    logger.warning("The current_value for a SIMPLE event "
-                                   "that is not yet active must be 0. "
-                                   "This will be corrected.")
-                    event_signal['current_value'] = 0
+            if (
+                'current_value' in event_signal
+                and event_signal['current_value'] != 0
+                and event_signal['signal_name'] == "SIMPLE"
+                and event['event_descriptor']['event_status'] != "ACTIVE"
+            ):
+                logger.warning("The current_value for a SIMPLE event "
+                               "that is not yet active must be 0. "
+                               "This will be corrected.")
+                event_signal['current_value'] = 0
 
     # Add the correct namespace to the measurement
     for event in message_payload['events']:
         for event_signal in event['event_signals']:
             if 'measurement' in event_signal and event_signal['measurement'] is not None:
-                if event_signal['measurement']['name'] in enums._MEASUREMENT_NAMESPACES:
-                    measurement_name = event_signal['measurement']['name']
-                    measurement_ns = enums._MEASUREMENT_NAMESPACES[measurement_name]
-                    event_signal['measurement']['ns'] = measurement_ns
-                else:
+                if (
+                    event_signal['measurement']['name']
+                    not in enums._MEASUREMENT_NAMESPACES
+                ):
                     raise ValueError("The Measurement Name is unknown")
 
+                measurement_name = event_signal['measurement']['name']
+                measurement_ns = enums._MEASUREMENT_NAMESPACES[measurement_name]
+                event_signal['measurement']['ns'] = measurement_ns
     # Check that there is a valid oadrResponseRequired value for each Event
     for event in message_payload['events']:
         if 'response_required' not in event:
@@ -145,5 +154,5 @@ def _preflight_oadrDistributeEvent(message_payload):
                                  "but the two were not consistent with each other. "
                                  f"You supplied 'targets' = {event['targets']} and "
                                  f"'targets_by_type' = {event['targets_by_type']}")
-        elif 'targets_by_type' in event and 'targets' not in event:
+        elif 'targets_by_type' in event:
             event['targets'] = utils.ungroup_targets_by_type(event['targets_by_type'])

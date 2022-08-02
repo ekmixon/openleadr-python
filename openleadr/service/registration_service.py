@@ -94,23 +94,22 @@ class RegistrationService(VTNService):
         if iscoroutine(result):
             result = await result
 
-        if result is not False and result is not None:
-            if len(result) != 2:
-                logger.error("Your on_create_party_registration handler should return either "
-                             "'False' (if the client is rejected) or a (ven_id, registration_id) "
-                             "tuple. Will REJECT the client for now.")
-                response_payload = {}
-            else:
-                ven_id, registration_id = result
-                transports = [{'transport_name': payload['transport_name']}]
-                response_payload = {'ven_id': result[0],
-                                    'registration_id': result[1],
-                                    'profiles': [{'profile_name': payload['profile_name'],
-                                                  'transports': transports}],
-                                    'requested_oadr_poll_freq': self.poll_freq}
-        else:
+        if result is False or result is None:
             transports = [{'transport_name': payload['transport_name']}]
             response_payload = {'profiles': [{'profile_name': payload['profile_name'],
+                                              'transports': transports}],
+                                'requested_oadr_poll_freq': self.poll_freq}
+        elif len(result) != 2:
+            logger.error("Your on_create_party_registration handler should return either "
+                         "'False' (if the client is rejected) or a (ven_id, registration_id) "
+                         "tuple. Will REJECT the client for now.")
+            response_payload = {}
+        else:
+            ven_id, registration_id = result
+            transports = [{'transport_name': payload['transport_name']}]
+            response_payload = {'ven_id': result[0],
+                                'registration_id': result[1],
+                                'profiles': [{'profile_name': payload['profile_name'],
                                               'transports': transports}],
                                 'requested_oadr_poll_freq': self.poll_freq}
         return 'oadrCreatedPartyRegistration', response_payload

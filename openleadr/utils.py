@@ -121,8 +121,8 @@ def normalize_dict(ordered_dict):
                         new_targets.extend([{ikey: value} for value in targets[ikey]])
                     else:
                         new_targets.append({ikey: targets[ikey]})
-            d[key + "s"] = new_targets
-            key = key + "s"
+            d[f"{key}s"] = new_targets
+            key = f"{key}s"
 
             # Also add a targets_by_type element to this dict
             # to access the targets in a more convenient way.
@@ -135,7 +135,6 @@ def normalize_dict(ordered_dict):
                 d['pending_reports'] = [{'request_id': rrid}
                                         for rrid in d['pending_reports']['report_request_id']]
 
-        # Group all events al a list of dicts under the key "events"
         elif key == "event" and isinstance(d[key], list):
             events = d.pop("event")
             new_events = []
@@ -145,7 +144,6 @@ def normalize_dict(ordered_dict):
                 new_events.append(new_event)
             d["events"] = new_events
 
-        # If there's only one event, also put it into a list
         elif key == "event" and isinstance(d[key], dict) and "event" in d[key]:
             oadr_event = d.pop('event')
             ei_event = oadr_event['event']
@@ -155,13 +153,8 @@ def normalize_dict(ordered_dict):
         elif key in ("request_event", "created_event") and isinstance(d[key], dict):
             d = d[key]
 
-        # Plurarize some lists
         elif key in ('report_request', 'report', 'specifier_payload'):
-            if isinstance(d[key], list):
-                d[key + 's'] = d.pop(key)
-            else:
-                d[key + 's'] = [d.pop(key)]
-
+            d[f'{key}s'] = d.pop(key) if isinstance(d[key], list) else [d.pop(key)]
         elif key in ('report_description', 'event_signal'):
             descriptions = d.pop(key)
             if not isinstance(descriptions, list):
@@ -182,30 +175,25 @@ def normalize_dict(ordered_dict):
                     item['pulse_factor'] = item.pop('pulse_factor')
                 description['measurement'] = {'name': name,
                                               **item}
-            d[key + 's'] = descriptions
+            d[f'{key}s'] = descriptions
 
-        # Promote the contents of the Qualified Event ID
         elif key == "qualified_event_id" and isinstance(d['qualified_event_id'], dict):
             qeid = d.pop('qualified_event_id')
             d['event_id'] = qeid['event_id']
             d['modification_number'] = qeid['modification_number']
 
-        # Durations are encapsulated in their own object, remove this nesting
         elif isinstance(d[key], dict) and "duration" in d[key] and len(d[key]) == 1:
             d[key] = d[key]["duration"]
 
-        # In general, remove all double nesting
         elif isinstance(d[key], dict) and key in d[key] and len(d[key]) == 1:
             d[key] = d[key][key]
 
-        # In general, remove the double nesting of lists of items
         elif isinstance(d[key], dict) and key[:-1] in d[key] and len(d[key]) == 1:
             if isinstance(d[key][key[:-1]], list):
                 d[key] = d[key][key[:-1]]
             else:
                 d[key] = [d[key][key[:-1]]]
 
-        # Payload values are wrapped in an object according to their type. We don't need that.
         elif key in ("signal_payload", "current_value"):
             value = d[key]
             if isinstance(d[key], dict):
@@ -216,7 +204,6 @@ def normalize_dict(ordered_dict):
                         and d[key]['payload_int'] is not None:
                     d[key] = int(d[key]['payload_int']['value'])
 
-        # Report payloads contain an r_id and a type-wrapped payload_float
         elif key == 'report_payload':
             if 'payload_float' in d[key] and 'value' in d[key]['payload_float']:
                 v = d[key].pop('payload_float')
@@ -225,26 +212,17 @@ def normalize_dict(ordered_dict):
                 v = d[key].pop('payload_float')
                 d[key]['value'] = int(v['value'])
 
-        # All values other than 'false' must be interpreted as True for testEvent (rule 006)
         elif key == 'test_event' and not isinstance(d[key], bool):
             d[key] = True
 
-        # Promote the 'text' item
         elif isinstance(d[key], dict) and "text" in d[key] and len(d[key]) == 1:
-            if key == 'uid':
-                d[key] = int(d[key]["text"])
-            else:
-                d[key] = d[key]["text"]
-
-        # Promote a 'date-time' item
+            d[key] = int(d[key]["text"]) if key == 'uid' else d[key]["text"]
         elif isinstance(d[key], dict) and "date_time" in d[key] and len(d[key]) == 1:
             d[key] = d[key]["date_time"]
 
-        # Promote 'properties' item, discard the unused? 'components' item
         elif isinstance(d[key], dict) and "properties" in d[key] and len(d[key]) <= 2:
             d[key] = d[key]["properties"]
 
-        # Remove all empty dicts
         elif isinstance(d[key], dict) and len(d[key]) == 0:
             d.pop(key)
     return d
@@ -254,14 +232,13 @@ def parse_datetime(value):
     """
     Parse an ISO8601 datetime into a datetime.datetime object.
     """
-    matches = re.match(r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.?(\d{1,6})?\d*Z', value)
-    if matches:
+    if matches := re.match(
+        r'(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})\.?(\d{1,6})?\d*Z',
+        value,
+    ):
         year, month, day, hour, minute, second = (int(value)for value in matches.groups()[:-1])
         micro = matches.groups()[-1]
-        if micro is None:
-            micro = 0
-        else:
-            micro = int(micro + "0" * (6 - len(micro)))
+        micro = 0 if micro is None else int(micro + "0" * (6 - len(micro)))
         return datetime(year, month, day, hour, minute, second, micro, tzinfo=timezone.utc)
     else:
         logger.warning(f"parse_datetime: {value} did not match format")
@@ -294,19 +271,18 @@ def parse_duration(value):
 
 
 def parse_boolean(value):
-    if value == 'true':
-        return True
-    else:
-        return False
+    return value == 'true'
 
 
 def datetimeformat(value, format=DATETIME_FORMAT):
     """
     Format a given datetime as a UTC ISO3339 string.
     """
-    if not isinstance(value, datetime):
-        return value
-    return value.astimezone(timezone.utc).strftime(format)
+    return (
+        value.astimezone(timezone.utc).strftime(format)
+        if isinstance(value, datetime)
+        else value
+    )
 
 
 def timedeltaformat(value):
@@ -315,11 +291,10 @@ def timedeltaformat(value):
     """
     if not isinstance(value, timedelta):
         return value
-    days = value.days
     hours, seconds = divmod(value.seconds, 3600)
     minutes, seconds = divmod(seconds, 60)
     formatted = "P"
-    if days:
+    if days := value.days:
         formatted += f"{days}D"
     if hours or minutes or seconds:
         formatted += "T"
@@ -425,13 +400,11 @@ def find_by(dict_or_list, key, value, *args):
             if isinstance(value, tuple):
                 if not hasmember(_item, key) or getmember(_item, key) not in value:
                     break
-            else:
-                if not hasmember(_item, key) or getmember(_item, key) != value:
-                    break
+            elif not hasmember(_item, key) or getmember(_item, key) != value:
+                break
         else:
             return item
-    else:
-        return None
+    return None
 
 
 def group_by(list_, key, pop_key=False):
@@ -489,10 +462,8 @@ def cron_config(interval, randomize_seconds=False):
 
 
 def get_cert_fingerprint_from_request(request):
-    ssl_object = request.transport.get_extra_info('ssl_object')
-    if ssl_object:
-        der_bytes = ssl_object.getpeercert(binary_form=True)
-        if der_bytes:
+    if ssl_object := request.transport.get_extra_info('ssl_object'):
+        if der_bytes := ssl_object.getpeercert(binary_form=True):
             return certificate_fingerprint_from_der(der_bytes)
 
 
@@ -512,8 +483,7 @@ def ungroup_targets_by_type(targets_by_type):
     ungrouped_targets = []
     for target_type, targets in targets_by_type.items():
         if isinstance(targets, list):
-            for target in targets:
-                ungrouped_targets.append({target_type: target})
+            ungrouped_targets.extend({target_type: target} for target in targets)
         elif isinstance(targets, str):
             ungrouped_targets.append({target_type: targets})
     return ungrouped_targets
@@ -536,52 +506,51 @@ def validate_report_measurement_dict(measurement):
     if name in _MEASUREMENT_DESCRIPTIONS:
         required_description = _MEASUREMENT_DESCRIPTIONS[name]
         if description != required_description:
-            if description.lower() == required_description.lower():
-                logger.warning(f"The description for the measurement with name '{name}' "
-                               f"was not in the correct case; you provided '{description}' but "
-                               f"it should be '{required_description}'. "
-                               "This was automatically corrected.")
-                measurement['description'] = required_description
-            else:
+            if description.lower() != required_description.lower():
                 raise ValueError(f"The measurement's description '{description}' "
                                  f"did not match the expected description for this type "
                                  f" ('{required_description}'). Please correct this, or use "
                                  "'customUnit' as the name.")
+            logger.warning(f"The description for the measurement with name '{name}' "
+                           f"was not in the correct case; you provided '{description}' but "
+                           f"it should be '{required_description}'. "
+                           "This was automatically corrected.")
+            measurement['description'] = required_description
         if unit not in _ACCEPTABLE_UNITS[name]:
             raise ValueError(f"The unit '{unit}' is not acceptable for measurement '{name}'. Allowed "
                              f"units are: '" + "', '".join(_ACCEPTABLE_UNITS[name]) + "'.")
-    else:
-        if name != 'customUnit':
-            logger.warning(f"You provided a measurement with an unknown name {name}. "
-                           "This was corrected to 'customUnit'. Please correct this in your "
-                           "report definition.")
-            measurement['name'] = 'customUnit'
+    elif name != 'customUnit':
+        logger.warning(f"You provided a measurement with an unknown name {name}. "
+                       "This was corrected to 'customUnit'. Please correct this in your "
+                       "report definition.")
+        measurement['name'] = 'customUnit'
 
     if 'power' in name:
-        if 'power_attributes' in measurement:
-            power_attributes = measurement['power_attributes']
-            if 'voltage' not in power_attributes \
-                    or 'ac' not in power_attributes \
-                    or 'hertz' not in power_attributes:
-                raise ValueError("The power_attributes of the measurement must contain the "
-                                 "following keys: 'voltage' (int), 'ac' (bool), 'hertz' (int).")
-        else:
+        if 'power_attributes' not in measurement:
             raise ValueError("A 'power' related measurement must contain a "
                              "'power_attributes' section that contains the following "
                              "keys: 'voltage' (int), 'ac' (boolean), 'hertz' (int)")
+        power_attributes = measurement['power_attributes']
+        if 'voltage' not in power_attributes \
+                or 'ac' not in power_attributes \
+                or 'hertz' not in power_attributes:
+            raise ValueError("The power_attributes of the measurement must contain the "
+                             "following keys: 'voltage' (int), 'ac' (bool), 'hertz' (int).")
 
 
 def get_active_period_from_intervals(intervals, as_dict=True):
     if is_dataclass(intervals[0]):
         intervals = [asdict(i) for i in intervals]
-    period_start = min([i['dtstart'] for i in intervals])
-    period_duration = max([i['dtstart'] + i['duration'] - period_start for i in intervals])
+    period_start = min(i['dtstart'] for i in intervals)
+    period_duration = max(
+        i['dtstart'] + i['duration'] - period_start for i in intervals
+    )
+
     if as_dict:
         return {'dtstart': period_start,
                 'duration': period_duration}
-    else:
-        from openleadr.objects import ActivePeriod
-        return ActivePeriod(dtstart=period_start, duration=period_duration)
+    from openleadr.objects import ActivePeriod
+    return ActivePeriod(dtstart=period_start, duration=period_duration)
 
 
 def determine_event_status(active_period):
@@ -609,9 +578,8 @@ def hasmember(obj, member):
     if is_dataclass(obj):
         if hasattr(obj, member):
             return True
-    else:
-        if member in obj:
-            return True
+    elif member in obj:
+        return True
     return False
 
 
@@ -621,15 +589,13 @@ def getmember(obj, member, missing='_RAISE_'):
     """
     def getmember_inner(obj, member, missing='_RAISE_'):
         if is_dataclass(obj):
-            if not missing == '_RAISE_' and not hasattr(obj, member):
-                return missing
-            else:
-                return getattr(obj, member)
-        else:
-            if missing == '_RAISE_':
-                return obj[member]
-            else:
-                return obj.get(member, missing)
+            return (
+                missing
+                if missing != '_RAISE_' and not hasattr(obj, member)
+                else getattr(obj, member)
+            )
+
+        return obj[member] if missing == '_RAISE_' else obj.get(member, missing)
 
     for m in member.split("."):
         obj = getmember_inner(obj, m, missing=missing)
@@ -661,7 +627,6 @@ def validate_report_request_tuples(list_of_report_requests, mode='full'):
             if rrq is None:
                 continue
 
-            # Check if it is a tuple
             elif not isinstance(rrq, tuple):
                 report_requests[i] = None
                 if mode == 'full':
@@ -671,8 +636,7 @@ def validate_report_request_tuples(list_of_report_requests, mode='full'):
                     logger.error("Your on_register_report handler did not return a tuple. "
                                  f"It returned '{rrq}'. Please see the documentation for the correct format.")
 
-            # Check if it has the correct length
-            elif not len(rrq) in (3, 4):
+            elif len(rrq) not in {3, 4}:
                 report_requests[i] = None
                 if mode == 'full':
                     logger.error("Your on_register_report handler returned tuples of the wrong length. "
@@ -681,7 +645,6 @@ def validate_report_request_tuples(list_of_report_requests, mode='full'):
                     logger.error("Your on_register_report handler returned a tuple of the wrong length. "
                                  f"It should be 2 or 3. It returned: '{rrq[1:]}'.")
 
-            # Check if the first element is callable
             elif not callable(rrq[1]):
                 report_requests[i] = None
                 if mode == 'full':
@@ -699,7 +662,6 @@ def validate_report_request_tuples(list_of_report_requests, mode='full'):
                                  "sampling_interval and reporting_interval are of type datetime.timedelta. "
                                  f"It returned: '{rrq[1:]}'. The first element was not callable.")
 
-            # Check if the second element is a timedelta
             elif not isinstance(rrq[2], timedelta):
                 report_requests[i] = None
                 if mode == 'full':
@@ -715,7 +677,6 @@ def validate_report_request_tuples(list_of_report_requests, mode='full'):
                                  "sampling_interval and reporting_interval are of type datetime.timedelta. "
                                  f"It returned: '{rrq[1:]}'. The second element was not of type timedelta.")
 
-            # Check if the third element is a timedelta (if it exists)
             elif len(rrq) == 4 and not isinstance(rrq[3], timedelta):
                 report_requests[i] = None
                 if mode == 'full':
@@ -742,9 +703,9 @@ async def gather_if_required(results):
     if results is None:
         return results
     if len(results) > 0:
-        if not any([asyncio.iscoroutine(r) for r in results]):
+        if not any(asyncio.iscoroutine(r) for r in results):
             results = results
-        elif all([asyncio.iscoroutine(r) for r in results]):
+        elif all(asyncio.iscoroutine(r) for r in results):
             results = await asyncio.gather(*results)
         else:
             results = [await await_if_required(result) for result in results]

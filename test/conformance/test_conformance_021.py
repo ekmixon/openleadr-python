@@ -39,7 +39,6 @@ async def lookup_ven(ven_name=None, ven_id=None):
 async def on_update_report(report, futures=None):
     if futures:
         futures.pop().set_result(True)
-    pass
 
 async def on_register_report(report, futures=None):
     """
@@ -86,8 +85,7 @@ def add_event(ven_id, event_id, event):
 async def _on_poll(ven_id, request_id=None):
     cur = DB.cursor()
     cur.execute("""SELECT event_id, event FROM events WHERE ven_id = ? AND status = 'new' LIMIT 1""", (ven_id,))
-    result = cur.fetchone()
-    if result:
+    if result := cur.fetchone():
         event_id, event = result
         event_request_id = generate_id()
         with DB:

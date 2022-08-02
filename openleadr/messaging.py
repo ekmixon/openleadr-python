@@ -75,10 +75,11 @@ def create_message(message_type, cert=None, key=None, passphrase=None, **message
     else:
         signature = None
 
-    msg = envelope.render(template=f'{message_type}',
-                          signature=signature,
-                          signed_object=signed_object)
-    return msg
+    return envelope.render(
+        template=f'{message_type}',
+        signature=signature,
+        signed_object=signed_object,
+    )
 
 
 def validate_xml_schema(content):
@@ -87,8 +88,7 @@ def validate_xml_schema(content):
     """
     if isinstance(content, str):
         content = content.encode('utf-8')
-    tree = etree.fromstring(content, XML_PARSER)
-    return tree
+    return etree.fromstring(content, XML_PARSER)
 
 
 def validate_xml_signature(xml_tree, cert_fingerprint=None):
@@ -107,55 +107,56 @@ def validate_xml_signature(xml_tree, cert_fingerprint=None):
 
 
 async def authenticate_message(request, message_tree, message_payload, fingerprint_lookup=None, ven_lookup=None):
-    if request.secure and 'ven_id' in message_payload:
-        connection_fingerprint = utils.get_cert_fingerprint_from_request(request)
-        if connection_fingerprint is None:
-            msg = ("Your request must use a client side SSL certificate, of which the "
-                   "fingerprint must match the fingerprint that you have given to this VTN.")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    if not request.secure or 'ven_id' not in message_payload:
+        return
+    connection_fingerprint = utils.get_cert_fingerprint_from_request(request)
+    if connection_fingerprint is None:
+        msg = ("Your request must use a client side SSL certificate, of which the "
+               "fingerprint must match the fingerprint that you have given to this VTN.")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
-        try:
-            ven_id = message_payload.get('ven_id')
-            if fingerprint_lookup:
-                expected_fingerprint = await utils.await_if_required(fingerprint_lookup(ven_id))
-                if not expected_fingerprint:
-                    raise ValueError
-            elif ven_lookup:
-                ven_info = await utils.await_if_required(ven_lookup(ven_id))
-                if not ven_info:
-                    raise ValueError
-                expected_fingerprint = ven_info.get('fingerprint')
-        except ValueError:
-            msg = (f"Your venID {ven_id} is not known to this VTN. Make sure you use the venID "
-                   "that you receive from this VTN during the registration step")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    try:
+        ven_id = message_payload.get('ven_id')
+        if fingerprint_lookup:
+            expected_fingerprint = await utils.await_if_required(fingerprint_lookup(ven_id))
+            if not expected_fingerprint:
+                raise ValueError
+        elif ven_lookup:
+            ven_info = await utils.await_if_required(ven_lookup(ven_id))
+            if not ven_info:
+                raise ValueError
+            expected_fingerprint = ven_info.get('fingerprint')
+    except ValueError:
+        msg = (f"Your venID {ven_id} is not known to this VTN. Make sure you use the venID "
+               "that you receive from this VTN during the registration step")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
-        if expected_fingerprint is None:
-            msg = ("This VTN server does not know what your certificate fingerprint is. Please "
-                   "deliver your fingerprint to the VTN (outside of OpenADR). You used the "
-                   "following fingerprint to make this request:")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    if expected_fingerprint is None:
+        msg = ("This VTN server does not know what your certificate fingerprint is. Please "
+               "deliver your fingerprint to the VTN (outside of OpenADR). You used the "
+               "following fingerprint to make this request:")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
-        if connection_fingerprint != expected_fingerprint:
-            msg = (f"The fingerprint of your HTTPS certificate '{connection_fingerprint}' "
-                   f"does not match the expected fingerprint '{expected_fingerprint}'")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    if connection_fingerprint != expected_fingerprint:
+        msg = (f"The fingerprint of your HTTPS certificate '{connection_fingerprint}' "
+               f"does not match the expected fingerprint '{expected_fingerprint}'")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
-        message_cert = utils.extract_pem_cert(message_tree)
-        message_fingerprint = utils.certificate_fingerprint(message_cert)
-        if message_fingerprint != expected_fingerprint:
-            msg = (f"The fingerprint of the certificate used to sign the message "
-                   f"{message_fingerprint} did not match the fingerprint that this "
-                   f"VTN has for you {expected_fingerprint}. Make sure you use the correct "
-                   "certificate to sign your messages.")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    message_cert = utils.extract_pem_cert(message_tree)
+    message_fingerprint = utils.certificate_fingerprint(message_cert)
+    if message_fingerprint != expected_fingerprint:
+        msg = (f"The fingerprint of the certificate used to sign the message "
+               f"{message_fingerprint} did not match the fingerprint that this "
+               f"VTN has for you {expected_fingerprint}. Make sure you use the correct "
+               "certificate to sign your messages.")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
-        try:
-            validate_xml_signature(message_tree)
-        except ValueError:
-            msg = ("The message signature did not match the message contents. Please make sure "
-                   "you are using the correct XMLDSig algorithm and C14n canonicalization.")
-            raise errors.NotRegisteredOrAuthorizedError(msg)
+    try:
+        validate_xml_signature(message_tree)
+    except ValueError:
+        msg = ("The message signature did not match the message contents. Please make sure "
+               "you are using the correct XMLDSig algorithm and C14n canonicalization.")
+        raise errors.NotRegisteredOrAuthorizedError(msg)
 
 
 def _create_replay_protect():

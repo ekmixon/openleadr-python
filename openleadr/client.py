@@ -245,7 +245,11 @@ class OpenADRClient:
 
         if data_collection_mode == 'full':
             args = inspect.signature(callback).parameters
-            if not ('date_from' in args and 'date_to' in args and 'sampling_interval' in args):
+            if (
+                'date_from' not in args
+                or 'date_to' not in args
+                or 'sampling_interval' not in args
+            ):
                 raise TypeError("Your callback function must accept the 'date_from', 'date_to' "
                                 "and 'sampling_interval' arguments if used "
                                 "with data_collection_mode 'full'.")
@@ -272,12 +276,11 @@ class OpenADRClient:
                                             scale=scale)
 
         if report_name != 'TELEMETRY_STATUS' and scale is not None:
-            if item_base.scale is not None:
-                if scale in enums.SI_SCALE_CODE.values:
-                    item_base.scale = scale
-            else:
+            if item_base.scale is None:
                 raise ValueError("The 'scale' argument must be one of '{'. ',join(enums.SI_SCALE_CODE.values)}")
 
+            if scale in enums.SI_SCALE_CODE.values:
+                item_base.scale = scale
         # Check if unit is compatible
         if unit is not None and unit != item_base.unit and unit not in item_base.acceptable_units:
             logger.warning(f"The supplied unit {unit} for measurement {measurement} "
@@ -517,18 +520,17 @@ class OpenADRClient:
                                  f"requested: {measurement['unit']}")
                     continue
 
-            if granularity is not None:
-                if not rd.sampling_rate.min_period <= granularity <= rd.sampling_rate.max_period:
-                    logger.error(f"An invalid sampling rate {granularity} was requested for report "
-                                 f"with report_specifier_id {report_specifier_id} and r_id {r_id}. "
-                                 f"The offered sampling rate was between "
-                                 f"{rd.sampling_rate.min_period} and "
-                                 f"{rd.sampling_rate.max_period}")
-                    continue
-            else:
+            if granularity is None:
                 # If no granularity is specified, set it to the lowest sampling rate.
                 granularity = rd.sampling_rate.max_period
 
+            elif not rd.sampling_rate.min_period <= granularity <= rd.sampling_rate.max_period:
+                logger.error(f"An invalid sampling rate {granularity} was requested for report "
+                             f"with report_specifier_id {report_specifier_id} and r_id {r_id}. "
+                             f"The offered sampling rate was between "
+                             f"{rd.sampling_rate.min_period} and "
+                             f"{rd.sampling_rate.max_period}")
+                continue
             requested_r_ids.append(r_id)
 
         callback = partial(self.update_report, report_request_id=report_request_id)
@@ -741,11 +743,14 @@ class OpenADRClient:
         except Exception as err:
             logger.error(f"The incoming message could not be parsed or validated: {err}")
             return None, {}
-        if 'response' in message_payload and 'response_code' in message_payload['response']:
-            if message_payload['response']['response_code'] != 200:
-                logger.warning("We got a non-OK OpenADR response from the server: "
-                               f"{message_payload['response']['response_code']}: "
-                               f"{message_payload['response']['response_description']}")
+        if (
+            'response' in message_payload
+            and 'response_code' in message_payload['response']
+            and message_payload['response']['response_code'] != 200
+        ):
+            logger.warning("We got a non-OK OpenADR response from the server: "
+                           f"{message_payload['response']['response_code']}: "
+                           f"{message_payload['response']['response_description']}")
         return message_type, message_payload
 
     async def _on_event(self, message):
@@ -757,8 +762,9 @@ class OpenADRClient:
                 event_id = event['event_descriptor']['event_id']
                 event_status = event['event_descriptor']['event_status']
                 modification_number = event['event_descriptor']['modification_number']
-                received_event = utils.find_by(self.received_events, 'event_descriptor.event_id', event_id)
-                if received_event:
+                if received_event := utils.find_by(
+                    self.received_events, 'event_descriptor.event_id', event_id
+                ):
                     if received_event['event_descriptor']['modification_number'] == modification_number:
                         # Re-submit the same opt type as we already had previously
                         result = self.responded_events[event_id]
@@ -789,17 +795,21 @@ class OpenADRClient:
                          f"The error was {err.__class__.__name__}: {str(err)}")
             results = ['optOut'] * len(events)
 
-        event_responses = [{'response_code': 200,
-                            'response_description': 'OK',
-                            'opt_type': results[i],
-                            'request_id': message['request_id'],
-                            'modification_number': events[i]['event_descriptor']['modification_number'],
-                            'event_id': events[i]['event_descriptor']['event_id']}
-                           for i, event in enumerate(events)
-                           if event['response_required'] == 'always'
-                           and not utils.determine_event_status(event['active_period']) == 'completed']
-
-        if len(event_responses) > 0:
+        if event_responses := [
+            {
+                'response_code': 200,
+                'response_description': 'OK',
+                'opt_type': results[i],
+                'request_id': message['request_id'],
+                'modification_number': events[i]['event_descriptor'][
+                    'modification_number'
+                ],
+                'event_id': events[i]['event_descriptor']['event_id'],
+            }
+            for i, event in enumerate(events)
+            if event['response_required'] == 'always'
+            and utils.determine_event_status(event['active_period']) != 'completed'
+        ]:
             response = {'response_code': 200,
                         'response_description': 'OK',
                         'request_id': message['request_id']}

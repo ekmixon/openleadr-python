@@ -28,9 +28,8 @@ async def lookup_fingerprint(ven_id):
 async def on_create_party_registration(payload, future):
     if payload['fingerprint'] != ven_fingerprint:
         raise errors.FingerprintMismatch("The fingerprint of your TLS connection does not match the expected fingerprint. Your VEN is not allowed to register.")
-    else:
-        future.set_result(True)
-        return 'ven1234', 'reg5678'
+    future.set_result(True)
+    return 'ven1234', 'reg5678'
 
 @pytest.mark.asyncio
 async def test_ssl_certificates():
